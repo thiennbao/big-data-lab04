@@ -52,6 +52,7 @@ state = []
 def process_batch(batch, query_function):
     global state
     records = batch.collect()
+    records = sorted(records, key=lambda r: r['timestamp'])
     results = []
     for symbol in set(r['symbol'] for r in records):
         current = [r for r in records if r['symbol'] == symbol]

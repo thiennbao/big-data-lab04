@@ -29,10 +29,10 @@ spark.sparkContext.setLogLevel("WARN")
 price_schema = T.StructType([
     T.StructField("symbol", T.StringType(), True),
     T.StructField("price", T.DoubleType(), True),
-    T.StructField("timestamp", T.StringType(), True),
+    T.StructField("timestamp", T.TimestampType(), True),
 ])
 moving_schema = T.StructType([
-    T.StructField("timestamp", T.StringType(), True),
+    T.StructField("timestamp", T.TimestampType(), True),
     T.StructField("symbol", T.StringType(), True),
     T.StructField("stats", T.ArrayType(T.StructType([
         T.StructField("window", T.StringType(), True),
@@ -40,6 +40,7 @@ moving_schema = T.StructType([
         T.StructField("std_price", T.DoubleType(), True),
     ])), True),
 ])
+
 
 price_kafka = (
     spark.readStream.format("kafka")
@@ -63,11 +64,16 @@ price_parsed = (
     price_kafka.selectExpr("CAST(value AS STRING)")
     .select(F.from_json(F.col("value"), price_schema).alias("data"))
     .select("data.*")
+    .withColumn("timestamp", F.date_trunc("second", F.col("timestamp")))
+    .withWatermark("timestamp", "10 seconds")
+    .groupBy("symbol", "timestamp")
+    .agg(F.avg("price").alias("price"))
 )
 moving_parsed = (
     moving_kafka.selectExpr("CAST(value AS STRING)")
     .select(F.from_json(F.col("value"), moving_schema).alias("data"))
     .select("data.*")
+    .withColumn("timestamp", F.date_trunc("second", F.col("timestamp")))
 )
 
 
@@ -80,9 +86,7 @@ z_score = exploded.select(
     F.expr("(price - stat.avg_price) / stat.std_price").alias("zscore_price"),
 )
 result = (
-    z_score
-    .withColumn("timestamp", F.col("timestamp").cast(T.TimestampType()))
-    .withWatermark("timestamp", LATE_DATA_TOLERANCE)
+    z_score.withWatermark("timestamp", LATE_DATA_TOLERANCE)
     .groupBy("timestamp", "symbol")
     .agg(F.collect_list(F.struct("window", "zscore_price")).alias("z_scores"))
 )
@@ -90,17 +94,14 @@ output = result.select(F.to_json(F.struct("*")).alias("value"))
 
 
 main_query = (
-    output.writeStream
-    .format("kafka")
+    output.writeStream.format("kafka")
     .outputMode("append")
     .option("kafka.bootstrap.servers", KAFKA_BROKER)
     .option("topic", OUTPUT_TOPIC)
-    .option("checkpointLocation", f"{CHECKPOINT_BASE_DIR}/{APP_NAME}/zscore")
     .start()
 )
 console_query = (
-    output.writeStream
-    .format("console")
+    output.writeStream.format("console")
     .outputMode("append")
     .option("truncate", False)
     .start()

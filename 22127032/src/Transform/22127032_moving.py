@@ -133,4 +133,3 @@ finally:
     query.stop() 
     spark.stop()
     print("SparkSession stopped. Script finished.")
-
