@@ -60,6 +60,7 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark-master
     ports:
       - '8080:8080'
       - '7077:7077'
@@ -76,8 +77,8 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=8G
-      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
@@ -111,8 +112,10 @@ services:
       - ./src:/opt/bitnami/spark/work/src
       - spark-checkpoints:/tmp/spark_checkpoints
     environment:
-      - SPARK_MODE=client
+      - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
       - PYTHONUNBUFFERED=1
       - PATH=/bin:/usr/bin:/opt/bitnami/python/bin:/opt/bitnami/spark/bin:/root/.local/bin:$PATH
     user: root
@@ -171,5 +174,11 @@ services:
         /opt/bitnami/spark/work/src/Bonus/22127032.py
     ```
 
-
-
+- Load:
+    ```sh
+    docker exec -it mongo mongosh
+    show dbs
+    use btc
+    show collections
+    db["btc-price-zscore-30s"].find().limit(5).pretty()
+    ```
